@@ -44,7 +44,6 @@ const static float rocket_radius = 5.f;
 
 //threading
 static const auto processor_count = std::thread::hardware_concurrency();
-ThreadPool pool{processor_count * 2};
 
 //tank directional check bools
 bool N = false, E = false, S = false, W = false;
@@ -462,16 +461,15 @@ void Game::update(float deltaTime)
 			}
 		}
 	}
-
-	auto f2 = pool.enqueue([=] {
-		for (Explosion& explosion : explosions)																										//N
-		{
+	
+	for (Explosion& explosion : explosions)																										//N
+	{
 			rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
 			explosion.tick();
-		}
+	}
 
-		explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
-	});
+	explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
+	
 
 	
 	//Update particle beams
@@ -491,7 +489,6 @@ void Game::update(float deltaTime)
 			}
 		}
 	}
-	f2.get();
 
 	for (Rocket& rocket : rockets)																												//N*M*N
 	{
@@ -499,7 +496,11 @@ void Game::update(float deltaTime)
 		if (!rocket.active)
 			continue;
 		//Check if rocket collides with enemy tank, spawn explosion, and if tank is destroyed spawn a smoke plume
-
+		if (rocket.position.y > 720 || rocket.position.y < 0 || rocket.position.x > 1280 || rocket.position.x < 0)
+		{
+			rocket.active = false;
+			return;
+		}
 
 		//this code has to do with the algorithm i employed to split up the tanks in buckets. this makes it very hard to multithread due to read access violations
 		for (Tank* tank : (*grid->GetGridLocation(grid->hashObject(rocket.position.x, rocket.position.y))->tankList))
