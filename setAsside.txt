@@ -1,0 +1,143 @@
+//get search area: rectangle based on furthest positions of the tanks
+		Tank* returnTank;
+		Rectangle2D searchArea = checkTank->allignment == RED ? blue : red;
+		vec2 firstCell = vec2();
+		GridCell* startCell = gridMap[checkTank->hash];
+
+
+
+		if (searchArea.intersects_circle(checkTank->position, checkTank->collision_radius))
+		{
+			firstCell = vec2(static_cast<int>(floorf(checkTank->position.x * (1 / cellSize.x))), static_cast<int>(floorf(checkTank->position.y * (1 / cellSize.y))));
+		}
+		else
+		{
+			firstCell = vec2(static_cast<int>(floorf(searchArea.max.x * (1 / cellSize.x))), static_cast<int>(floorf(checkTank->position.y * (1 / cellSize.y))));
+		}
+
+		bool done = false;
+		float closestDistance = numeric_limits<float>::infinity();; // distance to closest tank
+		int radius = 1;
+
+
+
+		int hHeight = checkTank->hash / setWidth;
+		int hWidth = checkTank->hash % setWidth;
+
+
+		while (!done)
+		{
+			vec2 curCell = firstCell - vec2(-radius, -radius);
+			for (int y = 0; y < (2 * radius) + 1; y++)
+			{
+				for (int x = 0; x < (2 * radius) + 1; x++)
+				{
+					if ((y == 0 || y == (2 * radius)) || (x == 0 || x == (2 * radius)))
+					{
+
+						int h = startCell->hash - ((x - radius) + ((y - radius) * setWidth)); // grid location of current cell we are searching
+						if (h < 0 || h >= gridMap.size())
+							continue;
+
+						GridCell* searchCell = gridMap[h]; // current cell we are searching is needed for the positions 
+
+
+						int cellHeight = h / setWidth; // y position in grid
+						int cellWidth = h % setWidth;  // x position in grid
+
+						vec2 closestCellPosition = searchCell->startPosition; //closest position in the current cell to check if any tank can be closer than the current closest
+
+
+						
+						if (!(cellHeight > hHeight))  { !(cellHeight < hHeight) ? closestCellPosition.y += (cellSize.y * 0.5) : closestCellPosition.y += cellSize.y;} // goes to farthest point or halfway based on relative translation of current cell
+						if (!(cellWidth > hWidth))  { !(cellWidth < hWidth) ? closestCellPosition.x += (cellSize.x * 0.5) : closestCellPosition.x += cellSize.x;}  // so it gets the closest position to the current cell within the cell we are checking
+						//translates to "relatively" closest distance to cell	GOOD ENOUGH!
+
+						//doesnt make sense
+						float closestCellDistance = fabsf((closestCellPosition - checkTank->get_position()).sqr_length());
+
+						//float sqr_dist = fabsf((closestCellPosition - checkTank->get_position()).sqr_length());
+
+
+							if (closestCellDistance < closestDistance)
+							{
+								vector<Tank*>* checkList = checkTank->allignment == RED ? searchCell->blue : searchCell->red;
+								
+								for (Tank* tank : *checkList)
+								{
+									float distance = fabsf((tank->position - checkTank->position).sqr_length());
+									 if(closestDistance > distance)
+										closestDistance = distance;
+									 returnTank = tank;
+								}
+							}
+
+					}
+
+				}
+			}
+			radius += 1;
+			if (radius >= 7)
+				done = true;
+		}
+		return returnTank;
+		//float closest;
+		//Tank* closestTank;
+		//int hHeight = checkTank->hash / setWidth;
+		//int hWidth = checkTank->hash % setWidth;
+
+		//bool N;
+		//bool S;
+		//bool E;
+		//bool W;
+
+
+
+		//for (auto& cell : gridMap) { //instead put spiral search here
+		//	if (checkTank->allignment == 0)
+		//	{
+
+
+
+
+		//		
+
+		//		//determine direction from cell to the cell to check
+		//		//get closest distance in the cell
+		//		//check if its closer than the closest enemy tank
+
+
+		//		//vec2 closestCellPosition = cell.second->startPosition;		// bottom left corner
+		//		//closestCellPosition.y += cellSize.y;						// top left corner
+		//		//closestCellPosition.x += cellSize.x;						// bottom right corner
+		//		//closestCellPosition += cellSize;							// top right corner
+
+		//		//how front back top and bottom?
+
+
+
+		//		if(cell.second->red->empty()) continue;
+		//		
+		//		for (Tank* tank : *cell.second->red)
+		//		{
+		//			float distance = fabsf((tank->get_position() - checkTank->position).sqr_length());
+
+		//			if (distance < closest)
+		//			{
+		//				closest = distance;
+		//				closestTank = tank;
+		//			}
+		//		}
+		//	}
+		//	else
+		//	{
+		//		if (cell.second->blue->empty()) continue;
+		//	}
+
+		//}
+
+
+		//check front and back
+		//check up and down
+		//take closest
+		//
