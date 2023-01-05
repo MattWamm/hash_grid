@@ -14,7 +14,6 @@ class Game
     void set_target(Surface* surface) { screen = surface; }
     void init();
     void shutdown();
-    void route_tank(Tank& tank);
     void update(float deltaTime);
     void draw();
     void merge(vector<Tank*>& sorted_tanks, int start, int middle, int end);
@@ -51,13 +50,14 @@ class Game
     Surface* screen;
     Grid* grid;
     vector<Tank> tanks;
+    vector<Tank> casualties;
     vector<Rocket> rockets;
     vector<Smoke> smokes;
     vector<Explosion> explosions;
     vector<Particle_beam> particle_beams;
 
     Terrain background_terrain;
-    std::vector<vec2> forcefield_hull;
+    vector<vec2> forcefield_hull;
 
     Font* frame_count_font;
     long long frame_count = 0;
