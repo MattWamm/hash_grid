@@ -118,10 +118,7 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 	vec2 furthestPossible{ 0,0 };
 	GridCell* tankCell = grid->GetGridLocation(current_tank.hash);
 	float mininumDistance = fabsf((vec2{ 0,0 } - vec2{grid->cellSize.x*3, grid->cellSize.y*3}).sqr_length());
-
-
 	vec2 closestHere{ numeric_limits<float>::infinity(), numeric_limits<float>::infinity() };
-
 
 	for (int i = 0; i < grid->Size(); i++)
 	{
@@ -198,59 +195,75 @@ bool Tmpl8::Game::left_of_line(vec2 line_start, vec2 line_end, vec2 point)
 	return ((line_end.x - line_start.x) * (point.y - line_start.y) - (line_end.y - line_start.y) * (point.x - line_start.x)) < 0;					//1
 }
 
-int findSide(vec2 p1, vec2 p2, vec2 p)
+float lineDist(vec2 A, vec2 B, vec2 point)
 {
-	int val = (p.y - p1.y) * (p2.x - p1.x) -
-		(p2.y - p1.y) * (p.x - p1.x);
-
-	if (val > 0)
-		return 1;
-	if (val < 0)
-		return -1;
-	return 0;
+	return fabsf((point.y - A.y) * (B.x - A.x) - (B.y - A.y) * (point.x - A.x));
 }
 
-
-int lineDist(vec2 p1, vec2 p2, vec2 p)
+void Game::createHull(vector<Tank>* points)
 {
-	return abs((p.y - p1.y) * (p2.x - p1.x) -
-		(p2.y - p1.y) * (p.x - p1.x));
-}
-
-void quickHull(vector<Tank>* a, int n, vec2 p1, vec2 p2, int side, vector<vec2>* hull)
-{
-	int ind = -1;
-	int max_dist = 0;
-
-	// finding the point with maximum distance
-	// from L and also on the specified side of L.
-	for (int i = 0; i < n; i++)
+	vec2 left = (640,360), right = (640, 360);
+	for (Tank tank : *points)
 	{
-		vec2* tankpos = &(a->at(i).position) ;
-		int temp = lineDist(p1, p2, *tankpos);
-		if (findSide(p1, p2, *tankpos) == side && temp > max_dist)
-		{
-			ind = i;
-			max_dist = temp;
-		}
+		if (!tank.active)
+			continue;
+		if (tank.position.x > left.x)
+			left = tank.position;
+		if (tank.position.x < right.x)
+			right = tank.position;
 	}
 	
-	// If no point is found, add the end points
-	// of L to the convex hull.
-	if (ind == -1)
+	vector<vec2> left_hull, right_hull;
+	
+	for (Tank tank : *points)
 	{
-		hull->push_back(p1);
-		hull->push_back(p2);
-		return;
+		if (!tank.active)
+			continue;
+		if (left_of_line(left, right, tank.position))
+			left_hull.push_back(tank.position);
+		else
+			right_hull.push_back(tank.position);
 	}
 
-	// Recur for the two parts divided by a[ind]
-	quickHull(a, n, a->at(ind).position, p1, -findSide(a->at(ind).position, p1, p2), hull);
-	quickHull(a, n, a->at(ind).position, p2, -findSide(a->at(ind).position, p2, p1), hull);
+	forcefield_hull.push_back(left);
+	findHull(left_hull, left, right);
+	forcefield_hull.push_back(right);
+	findHull(right_hull, right, left);
 }
 
+void Game::findHull(vector<vec2> hullpoints, vec2 A, vec2 B)
+{
+	if (hullpoints.empty())
+		return;
 
+	int furthest = 0;
+	float dist = 0;
+	for (int i = 0; i < hullpoints.size(); i++)
+	{
+		
+		float new_dist = lineDist(A, B, hullpoints[i]);
+		if (new_dist > dist)
+		{
+			dist = new_dist;
+			furthest = i;
+		}
+	}
 
+	vector<vec2> left_hull, right_hull;
+	for (int i = 0; i < hullpoints.size(); i++)
+	{
+		if (left_of_line(A, hullpoints[furthest], hullpoints[i]))
+			left_hull.push_back(hullpoints[i]);
+		else if (left_of_line(hullpoints[furthest], B, hullpoints[i]))
+			right_hull.push_back(hullpoints[i]);
+	}
+
+	findHull(left_hull, A, furthest);
+	
+	forcefield_hull.push_back(hullpoints[furthest]);
+
+	findHull(right_hull, furthest, B);
+}
 
 
 
@@ -440,7 +453,7 @@ void Game::update(float deltaTime)
 		smoke.tick();
 	}
 	
-	//this cant be moved up to the previous loop for read access violation? 
+	//this cant be moved up to the previous tank loop for read access violation? 
 	////Update tanks
 	for (Tank& tank : tanks)																														//N
 	{
@@ -466,55 +479,51 @@ void Game::update(float deltaTime)
 	//Calculate "forcefield" around active tanks
 	forcefield_hull.clear();
 
-	//Find first active tank (this loop is a bit disgusting, fix?)
-	
-	
-	int first_active = find_if(tanks.begin(), tanks.end(), [](Tank& tank) {return tank.active; }) - tanks.begin();
-	vec2 point_on_hull = tanks.at(first_active).position;
-	
-	
-	//Find left most tank position
-	for (Tank& tank : tanks)
-	{
-		if (tank.active)
-		{
-			if (tank.position.x <= point_on_hull.x)
-			{
-				point_on_hull = tank.position;
-			}
-		}
-	}
-
-	//Calculate convex hull for 'rocket barrier'
-	for (Tank& tank : tanks)
-	{
-		if (tank.active)
-		{
-			forcefield_hull.push_back(point_on_hull);
-			vec2 endpoint = tanks.at(first_active).position;
-
-			for (Tank& tank : tanks)
-			{
-				if (tank.active)
-				{
-					if ((endpoint == point_on_hull) || left_of_line(point_on_hull, endpoint, tank.position))
-					{
-						endpoint = tank.position;
-					}
-				}
-			}
-			point_on_hull = endpoint;
-
-			if (endpoint == forcefield_hull.at(0))
-			{
-				break;
-			}
-		}
-	}
-
-	//quickHull(a, n, a[min_x], a[max_x], 1);
+	////Find first active tank (this loop is a bit disgusting, fix?)
+	//int first_active = find_if(tanks.begin(), tanks.end(), [](Tank& tank) {return tank.active; }) - tanks.begin();
+	//vec2 point_on_hull = tanks.at(first_active).position;
 	//
-	//quickHull(a, n, a[min_x], a[max_x], -1);
+	//
+	////Find left most tank position
+	//for (Tank& tank : tanks)
+	//{
+	//	if (tank.active)
+	//	{
+	//		if (tank.position.x <= point_on_hull.x)
+	//		{
+	//			point_on_hull = tank.position;
+	//		}
+	//	}
+	//}
+
+	////Calculate convex hull for 'rocket barrier'
+	//for (Tank& tank : tanks)
+	//{
+	//	if (tank.active)
+	//	{
+	//		forcefield_hull.push_back(point_on_hull);
+	//		vec2 endpoint = tanks.at(first_active).position;
+
+	//		for (Tank& tank : tanks)
+	//		{
+	//			if (tank.active)
+	//			{
+	//				if ((endpoint == point_on_hull) || left_of_line(point_on_hull, endpoint, tank.position))
+	//				{
+	//					endpoint = tank.position;
+	//				}
+	//			}
+	//		}
+	//		point_on_hull = endpoint;
+
+	//		if (endpoint == forcefield_hull.at(0))
+	//		{
+	//			break;
+	//		}
+	//	}
+	//}
+	
+	createHull(&tanks);
 	
 	
 	for (Rocket& rocket : rockets)																												//N*M
@@ -610,10 +619,7 @@ void Game::draw()
 	background_terrain.draw(screen);
 
 	//Draw sprites
-	//for (int i = 0; i < casualties.size(); i++)																					//N
-	//{
-	//	casualties.at(i).draw(screen);
-	//}
+	
 	for (int i = 0; i < tanks.size(); i++)																					//N
 	{
 		tanks.at(i).draw(screen);

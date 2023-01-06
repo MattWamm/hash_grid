@@ -128,6 +128,11 @@ namespace Tmpl8
 		}
 	}
 
+	vector<vec2> Terrain::astar(const Tank& tank, const vec2& target)
+	{
+		
+	}
+
 
 
 	//Use Breadth-first search to find shortest route to the destination

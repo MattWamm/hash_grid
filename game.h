@@ -25,7 +25,10 @@ class Game
 
     Tank& find_closest_enemy(Tank& current_tank);
 
+    void Game::createHull(vector<Tank>* points);
 
+    void findHull(vector<vec2> hullpoints, vec2 A, vec2 B);
+    
     void mouse_up(int button)
     { /* implement if you want to detect mouse button presses */
     }
