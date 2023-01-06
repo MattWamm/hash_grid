@@ -226,12 +226,12 @@ void Game::createHull(vector<Tank>* points)
 	}
 
 	forcefield_hull.push_back(left);
-	findHull(left_hull, left, right);
+	quickHull(left_hull, left, right);
 	forcefield_hull.push_back(right);
-	findHull(right_hull, right, left);
+	quickHull(right_hull, right, left);
 }
 
-void Game::findHull(vector<vec2> hullpoints, vec2 A, vec2 B)
+void Game::quickHull(vector<vec2> hullpoints, vec2 A, vec2 B)
 {
 	if (hullpoints.empty())
 		return;
@@ -258,11 +258,11 @@ void Game::findHull(vector<vec2> hullpoints, vec2 A, vec2 B)
 			right_hull.push_back(hullpoints[i]);
 	}
 
-	findHull(left_hull, A, furthest);
+	quickHull(left_hull, A, hullpoints[furthest]);
 	
 	forcefield_hull.push_back(hullpoints[furthest]);
 
-	findHull(right_hull, furthest, B);
+	quickHull(right_hull, hullpoints[furthest], B);
 }
 
 
