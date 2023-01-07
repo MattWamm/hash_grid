@@ -92,7 +92,7 @@ void Game::init()
 	
 	for (Tank& t : tanks)																														//N
 	{
-		t.set_route(background_terrain.get_route(t, t.target));
+		t.set_route(background_terrain.get_route_astar(t, t.target));
 	}								
 	
 }	
@@ -478,50 +478,6 @@ void Game::update(float deltaTime)
 
 	//Calculate "forcefield" around active tanks
 	forcefield_hull.clear();
-
-	////Find first active tank (this loop is a bit disgusting, fix?)
-	//int first_active = find_if(tanks.begin(), tanks.end(), [](Tank& tank) {return tank.active; }) - tanks.begin();
-	//vec2 point_on_hull = tanks.at(first_active).position;
-	//
-	//
-	////Find left most tank position
-	//for (Tank& tank : tanks)
-	//{
-	//	if (tank.active)
-	//	{
-	//		if (tank.position.x <= point_on_hull.x)
-	//		{
-	//			point_on_hull = tank.position;
-	//		}
-	//	}
-	//}
-
-	////Calculate convex hull for 'rocket barrier'
-	//for (Tank& tank : tanks)
-	//{
-	//	if (tank.active)
-	//	{
-	//		forcefield_hull.push_back(point_on_hull);
-	//		vec2 endpoint = tanks.at(first_active).position;
-
-	//		for (Tank& tank : tanks)
-	//		{
-	//			if (tank.active)
-	//			{
-	//				if ((endpoint == point_on_hull) || left_of_line(point_on_hull, endpoint, tank.position))
-	//				{
-	//					endpoint = tank.position;
-	//				}
-	//			}
-	//		}
-	//		point_on_hull = endpoint;
-
-	//		if (endpoint == forcefield_hull.at(0))
-	//		{
-	//			break;
-	//		}
-	//	}
-	//}
 	
 	createHull(&tanks);
 	

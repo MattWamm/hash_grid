@@ -1,5 +1,5 @@
-#include "terrain.h"
 #include "precomp.h"
+#include "terrain.h"
 
 namespace fs = std::filesystem;
 namespace Tmpl8
@@ -128,13 +128,130 @@ namespace Tmpl8
 		}
 	}
 
-	vector<vec2> Terrain::astar(const Tank& tank, const vec2& target)
+	vector<vec2> Terrain::get_route_astar(const Tank& tank, const vec2& target)
 	{
-		
+		TerrainTile* start = &tiles.at(tank.position.y / sprite_size).at(tank.position.x / sprite_size);
+		TerrainTile* end = &tiles.at(target.y / sprite_size).at(target.x / sprite_size);
+
+		// set up the open and closed lists
+		vector<TerrainTile*> open_list;
+		vector<TerrainTile*> closed_list;
+
+		// add the start tile to the open list
+		open_list.push_back(start);
+
+		// set the start tile's f score (estimated distance to target) to the heuristic distance to the target
+		start->f_score = 0;
+
+		bool route_found = false;
+
+		while (!open_list.empty() && !route_found)
+		{
+			// find the tile in the open list with the lowest f score
+			int lowest_f_score = INT_MAX;
+			TerrainTile* current_tile = nullptr;
+
+			for (TerrainTile* tile : open_list)
+			{
+				if (tile->f_score < lowest_f_score)
+				{
+					current_tile = tile;
+					lowest_f_score = tile->f_score;
+				}
+			}
+
+			// move the current tile from the open list to the closed list
+			open_list.erase(std::remove(open_list.begin(), open_list.end(), current_tile), open_list.end());
+			current_tile->visited = true; // current tile is never nullpointer except if openlist is empty in which case it doesnt get here.
+			closed_list.push_back(current_tile); // this is not necessary for the algorithm, but it's useful for resetting the tiles.
+
+			// check all exits of the current tile
+			for (TerrainTile* exit : current_tile->exits)
+			{
+				if (exit == end)
+				{
+					exit->parent = current_tile;
+					route_found = true;
+					break;
+				}
+				
+				if (exit->visited)
+					continue; // skip this exit if it's already in the closed list
+				
+				if (find(open_list.begin(), open_list.end(), exit) == open_list.end())
+				{
+					exit->update_scores(current_tile, end);
+					open_list.push_back(exit); // add this exit to the open list if it's not already in it
+				}
+				else
+				{							   // if it's already in the open list, check if the current path is better
+					//calculate new gscore to check if it is better
+					int g_score = current_tile->g_score + 1;
+					if (exit->g_score < g_score)
+						exit->update_scores(current_tile, end);	// if it is, update the scores
+				}
+			}
+		}
+
+		// if a route was found, construct the route from the target to the start
+		if (route_found)
+		{
+			vector<vec2> route;
+			TerrainTile* current_tile = end;
+			while (current_tile != start)
+			{
+				route.insert(route.begin(), vec2((float)current_tile->position_x * sprite_size, (float)current_tile->position_y * sprite_size));
+				current_tile = current_tile->parent;
+			}
+			route.insert(route.begin(), vec2((float)current_tile->position_x * sprite_size, (float)current_tile->position_y * sprite_size));
+
+			// reset tiles
+			for (TerrainTile* tile : open_list)
+			{
+				tile->visited = false;
+				tile->parent = nullptr;
+				tile->g_score = 0;
+				tile->f_score = 0;
+			}
+			for (TerrainTile* tile : closed_list)
+			{
+				tile->visited = false;
+				tile->parent = nullptr;
+				tile->g_score = 0;
+				tile->f_score = 0;
+			}
+
+			return route;
+		}
+		else
+		{
+			// reset tiles
+			for (TerrainTile* tile : open_list)
+			{
+				tile->parent = nullptr;
+				tile->g_score = 0;
+				tile->f_score = 0;
+			}
+			for (TerrainTile* tile : closed_list)
+			{
+				tile->parent = nullptr;
+				tile->g_score = 0;
+				tile->f_score = 0;
+			}
+
+			return vector<vec2>();
+		}
 	}
 
+	// Calculate the heuristic distance (estimated distance) from one tile to another using the Manhattan distance
+	int Terrain::heuristic_distance(const TerrainTile& from, const TerrainTile& to)
+	{
+		int a = from.position_x - to.position_x;
+		int b = from.position_y - to.position_y;
 
-
+		return abs(a) + abs(b);
+	}
+	
 	//Use Breadth-first search to find shortest route to the destination
 	vector<vec2> Terrain::get_route(const Tank& tank, const vec2& target)
 	{
@@ -164,7 +281,6 @@ namespace Tmpl8
 			TerrainTile* current_tile = current_route.back();
 
 			//Check all exits, if target then done, else if unvisited push a new partial route
-
 
 			for (TerrainTile* exit : current_tile->exits)
 			{

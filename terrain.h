@@ -2,6 +2,7 @@
 
 namespace Tmpl8
 {
+    
     enum TileType
     {
         GRASS,
@@ -23,8 +24,27 @@ namespace Tmpl8
         size_t position_x;
         size_t position_y;
         TileType tile_type;
+        
+        int g_score;
+        int f_score;
+        TerrainTile* parent;
 
+		void update_scores(TerrainTile* current, TerrainTile* end)
+		{
+
+            parent = current;
+            g_score = current->g_score + 1;
+            f_score = g_score + heuristic_distance(*this, *end);;
+		}
     private:
+
+        int heuristic_distance(const TerrainTile& from, const TerrainTile& to)
+        {
+            int a = from.position_x - to.position_x;
+            int b = from.position_y - to.position_y;
+
+            return abs(a) + abs(b);
+        }
     };
 
 
@@ -37,9 +57,11 @@ namespace Tmpl8
         void update();
         void draw(Surface* target) const;
 
+        int heuristic_distance(const TerrainTile& from, const TerrainTile& to);
+
+        vector<vec2> get_route_astar(const Tank& tank, const vec2& target);
         //Use Breadth-first search to find shortest route to the destination
         vector<vec2> get_route(const Tank& tank, const vec2& target);
-        vector<vec2> astar(const Tank& tank, const vec2& target);
 
         float get_speed_modifier(const vec2& position) const;
 
