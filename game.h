@@ -25,7 +25,7 @@ class Game
 
     Tank& find_closest_enemy(Tank& current_tank);
 
-    void createHull(vector<Tank>* points);
+    void createHull(vector<Tank*>* points);
 
     void quickHull(vector<vec2> hullpoints, vec2 A, vec2 B);
     
@@ -51,9 +51,10 @@ class Game
 
   private:
     Surface* screen;
+    Surface* background;
     Grid* grid;
-    vector<Tank> tanks;
-    vector<Tank> casualties;
+    vector<Tank*> tanks;
+    vector<Tank*> casualties;
     vector<Rocket> rockets;
     vector<Smoke> smokes;
     vector<Explosion> explosions;

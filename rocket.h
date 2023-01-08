@@ -20,7 +20,6 @@ class Rocket
     float collision_radius;
 
     bool active;
-
     allignments allignment;
 
     int current_frame;

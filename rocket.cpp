@@ -1,7 +1,6 @@
 #include "precomp.h"
 #include "rocket.h"
 
-
 namespace Tmpl8
 {
 Rocket::Rocket(vec2 position, vec2 direction, float collision_radius, allignments allignment, Sprite* rocket_sprite)

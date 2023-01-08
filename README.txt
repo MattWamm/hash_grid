@@ -12,4 +12,7 @@ terrain.cpp
 	ln 131 - 253	added a* algorithm to pathfinding
 template.cpp
 	ln 21 - 86		changed functions to inline
+TODO:
+	remove inactive tanks from the list and draw them seperately so the checks dont have to go through them
+	multithread the entirety of the project
 	

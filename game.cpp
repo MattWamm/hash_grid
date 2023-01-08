@@ -57,7 +57,7 @@ bool N = false, E = false, S = false, W = false;
 void Game::init()
 {
 	frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
-
+	background = NULL;
 	tanks.reserve(num_tanks_blue + num_tanks_red);
 
 	uint max_rows = 24;
@@ -75,24 +75,24 @@ void Game::init()
 	for (int i = 0; i < num_tanks_blue; i++) //N
 	{
 		vec2 position{ start_blue_x + ((i % max_rows) * spacing), start_blue_y + ((i / max_rows) * spacing) };
-		tanks.push_back(Tank(position.x, position.y, BLUE, &tank_blue, &smoke, 1100.f, position.y + 16, tank_radius, tank_max_health, tank_max_speed));
-		grid->InsertObject(&tanks.back());
+		tanks.push_back(new Tank(position.x, position.y, BLUE, &tank_blue, &smoke, 1100.f, position.y + 16, tank_radius, tank_max_health, tank_max_speed));
+		grid->InsertObject(tanks.back());
 	}
 	//Spawn red tanks
 	for (int i = 0; i < num_tanks_red; i++) //N
 	{
 		vec2 position{ start_red_x + ((i % max_rows) * spacing), start_red_y + ((i / max_rows) * spacing) };
-		tanks.push_back(Tank(position.x, position.y, RED, &tank_red, &smoke, 100.f, position.y + 16, tank_radius, tank_max_health, tank_max_speed));
-		grid->InsertObject(&tanks.back());
+		tanks.push_back(new Tank(position.x, position.y, RED, &tank_red, &smoke, 100.f, position.y + 16, tank_radius, tank_max_health, tank_max_speed));
+		grid->InsertObject(tanks.back());
 	}
 
 	particle_beams.push_back(Particle_beam(vec2(590, 327), vec2(100, 50), &particle_beam_sprite, particle_beam_hit_value));
 	particle_beams.push_back(Particle_beam(vec2(64, 64), vec2(100, 50), &particle_beam_sprite, particle_beam_hit_value));
 	particle_beams.push_back(Particle_beam(vec2(1200, 600), vec2(100, 50), &particle_beam_sprite, particle_beam_hit_value));
 	
-	for (Tank& t : tanks)																														//N
+	for (Tank* t : tanks)																														//N
 	{
-		t.set_route(background_terrain.get_route_astar(t, t.target));
+		t->set_route(background_terrain.get_route_astar(*t, t->target));
 	}								
 	
 }	
@@ -196,30 +196,30 @@ float lineDist(vec2 A, vec2 B, vec2 point)
 	return fabsf((point.y - A.y) * (B.x - A.x) - (B.y - A.y) * (point.x - A.x));
 }
 
-void Game::createHull(vector<Tank>* points)
+void Game::createHull(vector<Tank*>* points)
 {
 	forcefield_hull.clear();
-	vec2 left = (640,360), right = (640, 360);
-	for (Tank tank : *points)
+	vec2 left = (675,360), right = (675, 360);
+	for (Tank* tank : *points)
 	{
-		if (!tank.active)
+		if (!tank->active)
 			continue;
-		if (tank.position.x > left.x)
-			left = tank.position;
-		else if (tank.position.x < right.x)
-			right = tank.position;
+		if (tank->position.x > left.x)
+			left = tank->position;
+		else if (tank->position.x < right.x)
+			right = tank->position;
 	}
 	
 	vector<vec2> left_hull, right_hull;
 	
-	for (Tank tank : *points)
+	for (Tank* tank : *points)
 	{
-		if (!tank.active)
+		if (!tank->active)
 			continue;
-		if (left_of_line(left, right, tank.position))
-			left_hull.push_back(tank.position);
+		if (left_of_line(left, right, tank->position))
+			left_hull.push_back(tank->position);
 		else
-			right_hull.push_back(tank.position);
+			right_hull.push_back(tank->position);
 	}
 
 	forcefield_hull.push_back(left);
@@ -278,31 +278,31 @@ void Game::update(float deltaTime)
 	//Initializing routes here so it gets counted for performance..
 	
 	//Update all tanks
-	
-	for (Tank& tank : tanks) // collision																											//N2
+	//changtes tanks velocity according to collisions
+	for (Tank* tank : tanks) // collision																											//N2
 		{
-			if (tank.active)
+			if (tank->active)
 			{
-				int tankHash = grid->GetHash(&tank);
+				int tankHash = grid->GetHash(tank);
 				auto cell = grid->GetGridLocation(tankHash); //gets the list of current cell
-				float col_Squared = tank.collision_radius + tank.collision_radius;
+				float col_Squared = tank->collision_radius + tank->collision_radius;
 
 				bool N = false, S = false, E = false, W = false;
 
-				N = abs(tank.position.y - cell->startPosition.y) < tank.collision_radius;
-				S = N ? false : abs(tank.position.y - (cell->startPosition.y + grid->cellSize.y)) < tank.collision_radius;
-				W = abs(tank.position.x - cell->startPosition.x) < tank.collision_radius;
-				E = W ? false : abs(tank.position.y - (cell->startPosition.x + grid->cellSize.x)) < tank.collision_radius;
+				N = abs(tank->position.y - cell->startPosition.y) < tank->collision_radius;
+				S = N ? false : abs(tank->position.y - (cell->startPosition.y + grid->cellSize.y)) < tank->collision_radius;
+				W = abs(tank->position.x - cell->startPosition.x) < tank->collision_radius;
+				E = W ? false : abs(tank->position.y - (cell->startPosition.x + grid->cellSize.x)) < tank->collision_radius;
 				//checks the sides the tank is close enough to collide with
 
 				for (Tank* other_tank : (*cell->tankList))																											//N
 				{
-					if (&tank == other_tank || !other_tank->active) continue;
-					vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+					if (tank == other_tank || !other_tank->active) continue;
+					vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 					if (dir.sqr_length() < col_squared_len)
 					{
-						tank.push(dir.normalized(), 1.f);
+						tank->push(dir.normalized(), 1.f);
 					}
 				}
 #pragma region calculate sides
@@ -313,12 +313,12 @@ void Game::update(float deltaTime)
 
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 
@@ -331,12 +331,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash - grid->setWidth);
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -348,12 +348,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash - 1);
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -365,12 +365,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash + 1);
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -381,12 +381,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash - (grid->setWidth - 1));
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -397,12 +397,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash - (grid->setWidth + 1));
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -413,12 +413,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash + (grid->setWidth + 1));
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -430,12 +430,12 @@ void Game::update(float deltaTime)
 						GridCell* NCell = grid->GetGridLocation(tankHash + (grid->setWidth - 1));
 						for (Tank* other_tank : (*NCell->tankList))																											//N
 						{
-							if (&tank == other_tank || !other_tank->active) continue;
-							vec2 dir = vec2(tank.position.x - other_tank->position.x, tank.position.y - other_tank->position.y);
+							if (tank == other_tank || !other_tank->active) continue;
+							vec2 dir = vec2(tank->position.x - other_tank->position.x, tank->position.y - other_tank->position.y);
 
 							if (dir.sqr_length() < col_squared_len)
 							{
-								tank.push(dir.normalized(), 1.f);
+								tank->push(dir.normalized(), 1.f);
 							}
 						}
 					}
@@ -444,33 +444,32 @@ void Game::update(float deltaTime)
 				
 			}
 	}
-	
+	//this cant be moved up to the previous tank loop for read access violation the tank is moved in this loop to a different cell
+	////Update tanks
+	for (Tank* tank : tanks)																														//N
+	{
+		if (tank->active)
+		{
+			//Move tanks according to speed and nudges (see above) also reload
+			tank->tick(background_terrain);
+			int checkHash = grid->GetHash(tank);
+			if (tank->hash != checkHash)
+			{
+				grid->MoveObject(tank, checkHash);
+			}
+			//Shoot at closest target if reloaded
+			if (tank->rocket_reloaded())
+			{
+				Tank& target = find_closest_enemy(*tank);
+				rockets.push_back(Rocket(tank->position, (target.get_position() - tank->position).normalized() * 3, rocket_radius, tank->allignment, ((tank->allignment == RED) ? &rocket_red : &rocket_blue)));
+				tank->reload_rocket();
+			}
+		}
+	}
+
 	for (Smoke& smoke : smokes)																														//N
 	{
 		smoke.tick();
-	}
-	
-	//this cant be moved up to the previous tank loop for read access violation the tank is moved in this loop to a different cell
-	////Update tanks
-	for (Tank& tank : tanks)																														//N
-	{
-		if (tank.active)
-		{
-			//Move tanks according to speed and nudges (see above) also reload
-			tank.tick(background_terrain);
-			int checkHash = grid->GetHash(&tank);
-			if (tank.hash != checkHash)
-			{
-				grid->MoveObject(&tank, checkHash);
-			}
-			//Shoot at closest target if reloaded
-			if (tank.rocket_reloaded())
-			{
-				Tank& target = find_closest_enemy(tank);
-				rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
-				tank.reload_rocket();
-			}
-		}
 	}
 
 	//Calculate "forcefield" around active tanks
@@ -479,27 +478,11 @@ void Game::update(float deltaTime)
 	
 	//convex hull intersection algorithm needed.
 	
-	for (Rocket& rocket : rockets)																												//N*M
-	{
-		if (rocket.active)
-		{
-			for (size_t i = 0; i < forcefield_hull.size(); i++)
-			{
-				if (circle_segment_intersect(forcefield_hull.at(i), forcefield_hull.at((i + 1) % forcefield_hull.size()), rocket.position, rocket.collision_radius))
-				{
-					explosions.push_back(Explosion(&explosion, rocket.position));
-					rocket.active = false;
-				}
-			}
-		}
-	}
-	
 	for (Explosion& explosion : explosions)																										//N
 	{
 			explosion.tick();
 	}
-
-	rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
+	
 	explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
 	
 	//Update particle beams
@@ -508,13 +491,14 @@ void Game::update(float deltaTime)
 		particle_beam.tick(tanks);
 
 		//Damage all tanks within the damage window of the beam (the window is an axis-aligned bounding box)
-		for (Tank& tank : tanks)
+		for (Tank* tank : tanks)
 		{
-			if (tank.active && particle_beam.rectangle.intersects_circle(tank.get_position(), tank.get_collision_radius()))
+			if (tank->active && particle_beam.rectangle.intersects_circle(tank->get_position(), tank->get_collision_radius()))
 			{
-				if (tank.hit(particle_beam.damage))
+				if (tank->hit(particle_beam.damage))
 				{
-					smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+					smokes.push_back(Smoke(smoke, tank->position - vec2(0, 48)));
+					casualties.push_back(tank);
 				}
 			}
 		}
@@ -542,14 +526,57 @@ void Game::update(float deltaTime)
 				{
 					smokes.push_back(Smoke(smoke, tank->position - vec2(7, 24)));
 					grid->RemoveObject(tank);
+					casualties.push_back(tank);
 				}
 				rocket.active = false;
 				break;
 			}
 		}
 	}
+	
+	rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
 
-	//tanks.erase(std::remove_if(tanks.begin(), tanks.end(), [](const Tank& tank) { return !tank.active; }), tanks.end());
+	for (Rocket& rocket : rockets)																												//N*M
+	{
+		if (rocket.active)
+		{
+			for (size_t i = 0; i < forcefield_hull.size(); i++)
+			{
+				if (circle_segment_intersect(forcefield_hull.at(i), forcefield_hull.at((i + 1) % forcefield_hull.size()), rocket.position, rocket.collision_radius))
+				{
+					explosions.push_back(Explosion(&explosion, rocket.position));
+					rocket.active = false;
+				}
+			}
+		}
+	}
+	//std::remove_if(tanks.begin(), tanks.end(), [](const Tank& tank) { return !tank.active; });
+
+	/*auto tank = tanks.begin();
+	while (tank != tanks.end())
+	{
+		if (!(*tank).active)
+		{
+			tank = tanks.erase(tank);
+		}
+		else
+		{
+			tank++;
+		}
+	}*/
+	/*vector<Tank> temp;
+	auto tank = tanks.begin();
+	while (tank != tanks.end())
+	{
+		if ((*tank).active)
+		{
+			temp.push_back(*tank);
+		}
+		tank++;
+		
+	}
+	tanks = temp;*/
+	tanks.erase(std::remove_if(tanks.begin(), tanks.end(), [](const Tank* tank) { return !tank->active; }), tanks.end());
 }
 
 // -----------------------------------------------------------
@@ -562,13 +589,26 @@ void Game::draw()
 	screen->clear(0);
 
 	//Draw background
-	background_terrain.draw(screen);
+	//background_terrain.draw(screen);
 
+	if (background == NULL)
+	{
+		background = new Surface(SCRWIDTH, SCRHEIGHT);
+		background->clear(0);
+		background_terrain.draw(background);
+	}
+	for (Tank* tank : casualties)																					//N
+	{
+		tank->draw(background);
+		delete tank;
+	}
+	background->copy_to(screen, 0, 0);
+	casualties.clear();
 	//Draw sprites
 	
-	for (int i = 0; i < tanks.size(); i++)																					//N
+	for (Tank* tank: tanks)																					//N
 	{
-		tanks.at(i).draw(screen);
+		tank->draw(screen);
 	}
 
 	for (Rocket& rocket : rockets)																												//N
@@ -608,7 +648,7 @@ void Game::draw()
 
 		const int begin = ((t < 1) ? 0 : num_tanks_blue);
 		std::vector<Tank*> sorted_tanks(tanks.size());
-		transform(tanks.begin(), tanks.end(), sorted_tanks.begin(), [](Tank& t) { return &t; }); //puts all the tanks in original in sorted tanks as pointers to make merge sorting easier
+		transform(tanks.begin(), tanks.end(), sorted_tanks.begin(), [](Tank* t) { return t; }); //puts all the tanks in original in sorted tanks as pointers to make merge sorting easier
 
 		merge_sort_tanks_health(sorted_tanks, 0, sorted_tanks.size() - 1, 0);
 

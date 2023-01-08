@@ -242,7 +242,7 @@ namespace Tmpl8
 			return vector<vec2>();
 		}
 	}
-
+ 
 	// Calculate the heuristic distance (estimated distance) from one tile to another using the Manhattan distance
 	int Terrain::heuristic_distance(const TerrainTile& from, const TerrainTile& to)
 	{

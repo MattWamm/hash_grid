@@ -244,6 +244,7 @@ int main(int argc, char** argv)
     int exitapp = 0;
     game = new Game();
     game->set_target(surface);
+
     timer t;
     t.reset();
     while (!exitapp)
