@@ -59,7 +59,7 @@ void Game::init()
 	frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 	background = NULL;
 	tanks.reserve(num_tanks_blue + num_tanks_red);
-	rockets_inactive.reserve(num_tanks_blue + num_tanks_red + 1000);
+	rockets_inactive.reserve((num_tanks_blue + num_tanks_red) * 2 + 1000);
 	
 	uint max_rows = 24;
 
@@ -261,7 +261,6 @@ void Game::quickHull(vector<vec2> hullpoints, vec2 A, vec2 B)		//quickhull algor
 	}
 
 	//adds the points in a clockwise order to the final list.
-
 	quickHull(left_hull, A, hullpoints[furthest]);
 	
 	forcefield_hull.push_back(hullpoints[furthest]);
@@ -281,13 +280,15 @@ void Game::update(float deltaTime)
 {
 	//Calculate the route to the destination for each tank using BFS
 	//Initializing routes here so it gets counted for performance..
-	
+
 	//Update all tanks
 	//changtes tanks velocity according to collisions
-	for (Tank* tank : tanks) // collision																											//N2
+
+	//Calculate "forcefield" around active tanks at the start doesnt really change much about the collision
+	auto f2 = pool.enqueue([&] {createHull(&tanks); });
+	auto f1 = pool.enqueue([&] {
+		for (Tank* tank : tanks) // collision																											//N2
 		{
-			if (tank->active)
-			{
 				int tankHash = grid->GetHash(tank);
 				auto cell = grid->GetGridLocation(tankHash); //gets the list of current cell
 				float col_Squared = tank->collision_radius + tank->collision_radius;
@@ -447,14 +448,27 @@ void Game::update(float deltaTime)
 				}
 #pragma endregions
 				
-			}
-	}
+		}
+	});
 	//this cant be moved up to the previous tank loop for read access violation the tank is moved in this loop to a different cell
 	////Update tanks
+
+	for (Smoke& smoke : smokes)																														//N
+	{
+		smoke.tick();
+	}
+
+	for (Explosion& explosion : explosions)																										//N
+	{
+		explosion.tick();
+	}
+
+	explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
+
+	f1.get();
+
 	for (Tank* tank : tanks)																														//N
 	{
-		if (tank->active)
-		{
 			//Move tanks according to speed and nudges (see above) also reload
 			tank->tick(background_terrain);
 			int checkHash = grid->GetHash(tank);
@@ -469,7 +483,7 @@ void Game::update(float deltaTime)
 				if (!rockets_inactive.empty())
 				{
 					//get rocket from cash of rockets
-					
+
 					Rocket* rocket = rockets_inactive.back();
 					rockets_inactive.pop_back();
 					rocket->active = true;
@@ -483,28 +497,9 @@ void Game::update(float deltaTime)
 					tank->reload_rocket();
 				}
 			}
-		}
+		
 	}
-
-	for (Smoke& smoke : smokes)																														//N
-	{
-		smoke.tick();
-	}
-
-	//Calculate "forcefield" around active tanks
-	
-	createHull(&tanks);
-	
-	//convex hull intersection algorithm needed.
-	
-	for (Explosion& explosion : explosions)																										//N
-	{
-			explosion.tick();
-	}
-	
-	explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
-	
-	//Update particle beams
+	//Update particle_beams
 	for (Particle_beam& particle_beam : particle_beams)																							//N*M
 	{
 		particle_beam.tick(tanks);
@@ -517,12 +512,13 @@ void Game::update(float deltaTime)
 				if (tank->hit(particle_beam.damage))
 				{
 					smokes.push_back(Smoke(smoke, tank->position - vec2(0, 48)));
+					grid->RemoveObject(tank);
 					casualties.push_back(tank);
 				}
 			}
 		}
 	}
-
+	
 	for (Rocket* rocket : rockets)																												//N*M*N
 	{
 		rocket->tick();
@@ -561,7 +557,10 @@ void Game::update(float deltaTime)
 				return true;
 			}
 			return false;
-		}), rockets.end());
+		}), 
+	rockets.end());
+
+	f2.get();
 
 	for (Rocket* rocket : rockets)																												//N*M
 	{
@@ -695,17 +694,19 @@ void Game::draw()
 
 void Tmpl8::Game::merge_sort_tanks_health(std::vector<Tank*>& sorted_tanks, int begin, int end, int depth)
 {
-	
 	if (begin < end)
 	{
-
 		int middle = floor(begin + (end - begin) / 2);
 		if (pow(2, depth) <= std::thread::hardware_concurrency())
 		{
-			//this one creates a read access violation when threaded
+			//this singlehandedly got me from 3.5 to 7.9 speedup
 
-			merge_sort_tanks_health(sorted_tanks, begin, middle, depth + 1);
-			merge_sort_tanks_health(sorted_tanks, middle + 1, end, depth + 1);
+			auto t1 = pool.enqueue([&] { this->merge_sort_tanks_health(sorted_tanks, begin, middle, depth + 1); });
+			auto t2 = pool.enqueue([&] { this->merge_sort_tanks_health(sorted_tanks, middle + 1, end, depth + 1); });
+			t1.get();
+			t2.get();
+			/*merge_sort_tanks_health(sorted_tanks, begin, middle, depth + 1);
+			merge_sort_tanks_health(sorted_tanks, middle + 1, end, depth + 1);*/
 		}
 		else
 		{
