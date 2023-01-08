@@ -55,7 +55,8 @@ class Game
     Grid* grid;
     vector<Tank*> tanks;
     vector<Tank*> casualties;
-    vector<Rocket> rockets;
+    vector<Rocket*> rockets;
+	vector<Rocket*> rockets_inactive;
     vector<Smoke> smokes;
     vector<Explosion> explosions;
     vector<Particle_beam> particle_beams;

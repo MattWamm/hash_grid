@@ -59,7 +59,8 @@ void Game::init()
 	frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 	background = NULL;
 	tanks.reserve(num_tanks_blue + num_tanks_red);
-
+	rockets_inactive.reserve(num_tanks_blue + num_tanks_red + 1000);
+	
 	uint max_rows = 24;
 
 	float start_blue_x = tank_size.x + 40.0f; //47
@@ -86,6 +87,11 @@ void Game::init()
 		grid->InsertObject(tanks.back());
 	}
 
+	for (int i = 0; i < (num_tanks_blue + num_tanks_red) * 2 + 1000; i++)
+	{
+		rockets_inactive.push_back(new Rocket(vec2{0,0},vec2{ 0,0 }, rocket_radius, RED , &rocket_red));
+	}
+
 	particle_beams.push_back(Particle_beam(vec2(590, 327), vec2(100, 50), &particle_beam_sprite, particle_beam_hit_value));
 	particle_beams.push_back(Particle_beam(vec2(64, 64), vec2(100, 50), &particle_beam_sprite, particle_beam_hit_value));
 	particle_beams.push_back(Particle_beam(vec2(1200, 600), vec2(100, 50), &particle_beam_sprite, particle_beam_hit_value));
@@ -94,7 +100,6 @@ void Game::init()
 	{
 		t->set_route(background_terrain.get_route_astar(*t, t->target));
 	}								
-	
 }	
 
 // -----------------------------------------------------------
@@ -461,8 +466,22 @@ void Game::update(float deltaTime)
 			if (tank->rocket_reloaded())
 			{
 				Tank& target = find_closest_enemy(*tank);
-				rockets.push_back(Rocket(tank->position, (target.get_position() - tank->position).normalized() * 3, rocket_radius, tank->allignment, ((tank->allignment == RED) ? &rocket_red : &rocket_blue)));
-				tank->reload_rocket();
+				if (!rockets_inactive.empty())
+				{
+					//get rocket from cash of rockets
+					
+					Rocket* rocket = rockets_inactive.back();
+					rockets_inactive.pop_back();
+					rocket->active = true;
+					rocket->allignment = tank->allignment;
+					rocket->position = tank->position;
+					rocket->speed = (target.get_position() - tank->position).normalized() * 3;
+					rocket->rocket_sprite = tank->allignment == RED ? &rocket_red : &rocket_blue;
+
+					rockets.push_back(rocket);
+					//new Rocket(tank->position, (target.get_position() - tank->position).normalized() * 3, rocket_radius, tank->allignment, ((tank->allignment == RED) ? &rocket_red : &rocket_blue))
+					tank->reload_rocket();
+				}
 			}
 		}
 	}
@@ -504,21 +523,21 @@ void Game::update(float deltaTime)
 		}
 	}
 
-	for (Rocket& rocket : rockets)																												//N*M*N
+	for (Rocket* rocket : rockets)																												//N*M*N
 	{
-		rocket.tick();
-		if (!rocket.active)
+		rocket->tick();
+		if (!rocket->active)
 			continue;
 		//Check if rocket collides with enemy tank, spawn explosion, and if tank is destroyed spawn a smoke plume
 		
-		GridCell* cell = grid->GetGridLocation(grid->hashObject(rocket.position.x, rocket.position.y));
+		GridCell* cell = grid->GetGridLocation(grid->hashObject(rocket->position.x, rocket->position.y));
 		
 		//this code has to do with the algorithm i employed to split up the tanks in buckets.
-		vector<Tank*>* list = rocket.allignment != RED ? cell->red : cell->blue;
+		vector<Tank*>* list = rocket->allignment != RED ? cell->red : cell->blue;
 		
 		for (Tank* tank : *list)
 		{
-			if (tank->active && rocket.intersects(tank->position, tank->collision_radius))
+			if (tank->active && rocket->intersects(tank->position, tank->collision_radius))
 			{
 				explosions.push_back(Explosion(&explosion, tank->position));
 
@@ -528,54 +547,36 @@ void Game::update(float deltaTime)
 					grid->RemoveObject(tank);
 					casualties.push_back(tank);
 				}
-				rocket.active = false;
+				rocket->active = false;
 				break;
 			}
 		}
 	}
 	
-	rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
+	rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [this](Rocket* rocket) 
+		{ 
+			if (!rocket->active)
+			{
+				rockets_inactive.push_back(rocket);
+				return true;
+			}
+			return false;
+		}), rockets.end());
 
-	for (Rocket& rocket : rockets)																												//N*M
+	for (Rocket* rocket : rockets)																												//N*M
 	{
-		if (rocket.active)
+		if (rocket->active)
 		{
 			for (size_t i = 0; i < forcefield_hull.size(); i++)
 			{
-				if (circle_segment_intersect(forcefield_hull.at(i), forcefield_hull.at((i + 1) % forcefield_hull.size()), rocket.position, rocket.collision_radius))
+				if (circle_segment_intersect(forcefield_hull.at(i), forcefield_hull.at((i + 1) % forcefield_hull.size()), rocket->position, rocket->collision_radius))
 				{
-					explosions.push_back(Explosion(&explosion, rocket.position));
-					rocket.active = false;
+					explosions.push_back(Explosion(&explosion, rocket->position));
+					rocket->active = false;
 				}
 			}
 		}
 	}
-	//std::remove_if(tanks.begin(), tanks.end(), [](const Tank& tank) { return !tank.active; });
-
-	/*auto tank = tanks.begin();
-	while (tank != tanks.end())
-	{
-		if (!(*tank).active)
-		{
-			tank = tanks.erase(tank);
-		}
-		else
-		{
-			tank++;
-		}
-	}*/
-	/*vector<Tank> temp;
-	auto tank = tanks.begin();
-	while (tank != tanks.end())
-	{
-		if ((*tank).active)
-		{
-			temp.push_back(*tank);
-		}
-		tank++;
-		
-	}
-	tanks = temp;*/
 	tanks.erase(std::remove_if(tanks.begin(), tanks.end(), [](const Tank* tank) { return !tank->active; }), tanks.end());
 }
 
@@ -611,9 +612,9 @@ void Game::draw()
 		tank->draw(screen);
 	}
 
-	for (Rocket& rocket : rockets)																												//N
+	for (Rocket* rocket : rockets)																												//N
 	{
-		rocket.draw(screen);
+		rocket->draw(screen);
 	}
 
 	for (Smoke& smoke : smokes)																													//N
