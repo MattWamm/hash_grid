@@ -25,7 +25,7 @@ class Game
 
     Tank& find_closest_enemy(Tank& current_tank);
 
-    void Game::createHull(vector<Tank>* points);
+    void createHull(vector<Tank>* points);
 
     void quickHull(vector<vec2> hullpoints, vec2 A, vec2 B);
     

@@ -14,7 +14,7 @@ constexpr auto health_bar_width = 70;
 constexpr auto max_frames = 2000;
 
 //Global performance timer
-constexpr auto REF_PERFORMANCE = 108894; //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+constexpr auto REF_PERFORMANCE = 120614; //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -41,9 +41,10 @@ const static vec2 rocket_size(6, 6);
 const static float tank_radius = 3.f;
 const float col_squared_len = (tank_radius + tank_radius) * (tank_radius + tank_radius);
 const static float rocket_radius = 5.f;
-
 //threading
 static const auto processor_count = std::thread::hardware_concurrency();
+ThreadPool pool{processor_count * 2};
+
 
 //tank directional check bools
 bool N = false, E = false, S = false, W = false;
@@ -57,7 +58,6 @@ void Game::init()
 {
 	frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 
-	
 	tanks.reserve(num_tanks_blue + num_tanks_red);
 
 	uint max_rows = 24;
@@ -109,8 +109,6 @@ void Game::shutdown()
 // -----------------------------------------------------------
 Tank& Game::find_closest_enemy(Tank& current_tank)
 {
-	//very inefficient but better than nothing
-	
 	Tank* closestTank{};
 	float closest_distance = numeric_limits<float>::infinity();
 	float closest_cell_distance = numeric_limits<float>::infinity();
@@ -128,7 +126,6 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 		else if (current_tank.allignment == RED && cell->blue->empty())
 				continue;
 		
-		
 		//gets the furthest position in the closest cell
 		closestHere = cell->startPosition;
 		closestHere += current_tank.position.x < cell->startPosition.x ? grid->cellSize.x : current_tank.position.x > cell->startPosition.x ? 0 : (grid->cellSize.x / 2);
@@ -143,16 +140,14 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 		}
 		else
 		{
-
 			if (sqr_dist > closest_cell_distance)
 				continue;
 			closest_cell_distance = sqr_dist;
 		}
-		//technically the closest cell with enemies but the furthest possible position within that cell (close enough)
+		//the closest cell with enemies but the furthest possible position within that cell.
 	}
 	for (int i = 0; i < grid->Size(); i++)																											//N
 	{
-		//Check tank collision and nudge tanks away from each other	
 		GridCell* cell = grid->GetGridLocation(i);
 
 		if (current_tank.allignment == BLUE && cell->red->empty())
@@ -189,6 +184,7 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 	}
 	return *closestTank ;
 }
+
 //Checks if a point lies on the left of an arbitrary angled line
 bool Tmpl8::Game::left_of_line(vec2 line_start, vec2 line_end, vec2 point)
 {
@@ -202,6 +198,7 @@ float lineDist(vec2 A, vec2 B, vec2 point)
 
 void Game::createHull(vector<Tank>* points)
 {
+	forcefield_hull.clear();
 	vec2 left = (640,360), right = (640, 360);
 	for (Tank tank : *points)
 	{
@@ -209,7 +206,7 @@ void Game::createHull(vector<Tank>* points)
 			continue;
 		if (tank.position.x > left.x)
 			left = tank.position;
-		if (tank.position.x < right.x)
+		else if (tank.position.x < right.x)
 			right = tank.position;
 	}
 	
@@ -231,7 +228,7 @@ void Game::createHull(vector<Tank>* points)
 	quickHull(right_hull, right, left);
 }
 
-void Game::quickHull(vector<vec2> hullpoints, vec2 A, vec2 B)
+void Game::quickHull(vector<vec2> hullpoints, vec2 A, vec2 B)		//quickhull algorithm.
 {
 	if (hullpoints.empty())
 		return;
@@ -258,14 +255,14 @@ void Game::quickHull(vector<vec2> hullpoints, vec2 A, vec2 B)
 			right_hull.push_back(hullpoints[i]);
 	}
 
+	//adds the points in a clockwise order to the final list.
+
 	quickHull(left_hull, A, hullpoints[furthest]);
 	
 	forcefield_hull.push_back(hullpoints[furthest]);
 
 	quickHull(right_hull, hullpoints[furthest], B);
 }
-
-
 
 // -----------------------------------------------------------
 // Update the game state:
@@ -453,7 +450,7 @@ void Game::update(float deltaTime)
 		smoke.tick();
 	}
 	
-	//this cant be moved up to the previous tank loop for read access violation? 
+	//this cant be moved up to the previous tank loop for read access violation the tank is moved in this loop to a different cell
 	////Update tanks
 	for (Tank& tank : tanks)																														//N
 	{
@@ -477,10 +474,10 @@ void Game::update(float deltaTime)
 	}
 
 	//Calculate "forcefield" around active tanks
-	forcefield_hull.clear();
 	
 	createHull(&tanks);
 	
+	//convex hull intersection algorithm needed.
 	
 	for (Rocket& rocket : rockets)																												//N*M
 	{
@@ -499,10 +496,10 @@ void Game::update(float deltaTime)
 	
 	for (Explosion& explosion : explosions)																										//N
 	{
-			rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
 			explosion.tick();
 	}
 
+	rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
 	explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
 	
 	//Update particle beams
@@ -530,16 +527,9 @@ void Game::update(float deltaTime)
 			continue;
 		//Check if rocket collides with enemy tank, spawn explosion, and if tank is destroyed spawn a smoke plume
 		
-		if (rocket.position.y > 720 || rocket.position.y < 0 || rocket.position.x > 1280 || rocket.position.x < 0)
-		{
-			rocket.active = false;
-			continue;
-		}
-
-		
 		GridCell* cell = grid->GetGridLocation(grid->hashObject(rocket.position.x, rocket.position.y));
 		
-		//this code has to do with the algorithm i employed to split up the tanks in buckets. this makes it very hard to multithread due to read access violations
+		//this code has to do with the algorithm i employed to split up the tanks in buckets.
 		vector<Tank*>* list = rocket.allignment != RED ? cell->red : cell->blue;
 		
 		for (Tank* tank : *list)
