@@ -24,7 +24,7 @@ class Game
     void measure_performance();
 
     Tank& find_closest_enemy(Tank& current_tank);
-
+    void updateTanks(vector<Tank*>* tankList);
     void createHull(vector<Tank*>* points);
 
     void quickHull(vector<vec2> hullpoints, vec2 A, vec2 B);

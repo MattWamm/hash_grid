@@ -190,6 +190,42 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 	return *closestTank ;
 }
 
+void Game::updateTanks(vector<Tank*>* tankList)
+{
+	for (Tank* tank : *tankList)																														//N
+	{
+		//Move tanks according to speed and nudges (see above) also reload
+		tank->tick(background_terrain);
+		int checkHash = grid->GetHash(tank);
+		if (tank->hash != checkHash)
+		{
+			grid->MoveObject(tank, checkHash);
+		}
+		//Shoot at closest target if reloaded
+		if (tank->rocket_reloaded())
+		{
+			Tank& target = find_closest_enemy(*tank);
+			if (!rockets_inactive.empty())
+			{
+				//get rocket from cash of rockets
+
+				Rocket* rocket = rockets_inactive.back();
+				rockets_inactive.pop_back();
+				rocket->active = true;
+				rocket->allignment = tank->allignment;
+				rocket->position = tank->position;
+				rocket->speed = (target.get_position() - tank->position).normalized() * 3;
+				rocket->rocket_sprite = tank->allignment == RED ? &rocket_red : &rocket_blue;
+
+				rockets.push_back(rocket);
+				//new Rocket(tank->position, (target.get_position() - tank->position).normalized() * 3, rocket_radius, tank->allignment, ((tank->allignment == RED) ? &rocket_red : &rocket_blue))
+				tank->reload_rocket();
+			}
+		}
+
+	}
+}
+
 //Checks if a point lies on the left of an arbitrary angled line
 bool Tmpl8::Game::left_of_line(vec2 line_start, vec2 line_end, vec2 point)
 {
@@ -280,12 +316,13 @@ void Game::update(float deltaTime)
 {
 	//Calculate the route to the destination for each tank using BFS
 	//Initializing routes here so it gets counted for performance..
-
-	//Update all tanks
-	//changtes tanks velocity according to collisions
+	
 
 	//Calculate "forcefield" around active tanks at the start doesnt really change much about the collision
 	auto f2 = pool.enqueue([&] {createHull(&tanks); });
+	
+
+	//changes tanks velocity according to collisions
 	auto f1 = pool.enqueue([&] {
 		for (Tank* tank : tanks) // collision																											//N2
 		{
@@ -450,8 +487,6 @@ void Game::update(float deltaTime)
 				
 		}
 	});
-	//this cant be moved up to the previous tank loop for read access violation the tank is moved in this loop to a different cell
-	////Update tanks
 
 	for (Smoke& smoke : smokes)																														//N
 	{
@@ -467,6 +502,30 @@ void Game::update(float deltaTime)
 
 	f1.get();
 
+	/*int listSize = tanks.size() / 4;
+	vector<std::future<void>*> futures;
+	for (int i = 0; i > 4; i++)
+	{
+		int begin = i * listSize;
+
+		int end = (i + 1) * listSize - 1;
+		if (end > tanks.size())
+		{
+			end = tanks.size();
+		};
+		vector<Tank*>* tankList = new vector<Tank*>(tanks.begin() + begin, tanks.begin() + end);
+		
+		futures.push_back(&pool.enqueue([&]
+			{
+				updateTanks(tankList);
+		}));
+		
+	}
+	for (future<void>* f : futures)
+	{
+		f->get();
+	}*/
+	//update tank positions
 	for (Tank* tank : tanks)																														//N
 	{
 			//Move tanks according to speed and nudges (see above) also reload
@@ -504,9 +563,12 @@ void Game::update(float deltaTime)
 	{
 		particle_beam.tick(tanks);
 
+		
+
+
 		//Damage all tanks within the damage window of the beam (the window is an axis-aligned bounding box)
 		for (Tank* tank : tanks)
-		{
+		{	
 			if (tank->active && particle_beam.rectangle.intersects_circle(tank->get_position(), tank->get_collision_radius()))
 			{
 				if (tank->hit(particle_beam.damage))

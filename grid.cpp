@@ -26,14 +26,12 @@ namespace Tmpl8
 			}
 		}
 	}
-
 	
 	int Grid::Size()
 	{
 		return numberCells;
 	}
-
-
+	
 	void Grid::InsertObject(Tank* tank) noexcept
 	{
 		int h = hashObject(tank->position.x, tank->position.y);
