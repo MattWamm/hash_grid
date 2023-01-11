@@ -23,6 +23,20 @@ inline Pixel add_blend(Pixel a_Color1, Pixel a_Color2)
     return (r1 + g1 + b1);
 }
 
+inline Pixel add_over(Pixel a_Color1, Pixel a_Color2)
+{
+	if (a_Color1 == 0) return a_Color2;
+	if (a_Color2 == 0) return a_Color1;
+    const unsigned int r = (a_Color1 & REDMASK) + (a_Color2 & REDMASK);
+    const unsigned int g = (a_Color1 & GREENMASK) + (a_Color2 & GREENMASK);
+    const unsigned int b = (a_Color1 & BLUEMASK) + (a_Color2 & BLUEMASK);
+    const unsigned r1 = (r & REDMASK) | (REDMASK * (r >> 24));
+    const unsigned g1 = (g & GREENMASK) | (GREENMASK * (g >> 16));
+    const unsigned b1 = (b & BLUEMASK) | (BLUEMASK * (b >> 8));
+    return (r1 + g1 + b1);
+}
+
+
 // subtractive blending
 inline Pixel sub_blend(Pixel a_Color1, Pixel a_Color2)
 {
@@ -75,6 +89,8 @@ class Surface
     void load_image(const char* a_File);
     void copy_to(Surface* a_Dst, int a_X, int a_Y);
     void blend_copy_to(Surface* a_Dst, int a_X, int a_Y);
+    void transparent_copy_to(Surface* a_Dst, int a_X, int a_Y);
+    void draw_over(Surface* a_Dst, int a_X, int a_Y);
     void scale_color(unsigned int a_Scale);
     void box(int x1, int y1, int x2, int y2, Pixel color);
     void bar(int x1, int y1, int x2, int y2, Pixel color);

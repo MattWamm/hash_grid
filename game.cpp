@@ -99,7 +99,9 @@ void Game::init()
 	for (Tank* t : tanks)																														//N
 	{
 		t->set_route(background_terrain.get_route_astar(*t, t->target));
-	}								
+	}
+
+	
 }	
 
 // -----------------------------------------------------------
@@ -488,9 +490,9 @@ void Game::update(float deltaTime)
 		}
 	});
 
-	for (Smoke& smoke : smokes)																														//N
+	for (Smoke* smoke : smokes)																														//N
 	{
-		smoke.tick();
+		smoke->tick();
 	}
 
 	for (Explosion& explosion : explosions)																										//N
@@ -563,9 +565,6 @@ void Game::update(float deltaTime)
 	{
 		particle_beam.tick(tanks);
 
-		
-
-
 		//Damage all tanks within the damage window of the beam (the window is an axis-aligned bounding box)
 		for (Tank* tank : tanks)
 		{	
@@ -573,7 +572,7 @@ void Game::update(float deltaTime)
 			{
 				if (tank->hit(particle_beam.damage))
 				{
-					smokes.push_back(Smoke(smoke, tank->position - vec2(0, 48)));
+					smokes.push_back(new Smoke(smoke, tank->position - vec2(0, 48)));
 					grid->RemoveObject(tank);
 					casualties.push_back(tank);
 				}
@@ -601,7 +600,7 @@ void Game::update(float deltaTime)
 
 				if (tank->hit(rocket_hit_value))
 				{
-					smokes.push_back(Smoke(smoke, tank->position - vec2(7, 24)));
+					smokes.push_back(new Smoke(smoke, tank->position - vec2(7, 24)));
 					grid->RemoveObject(tank);
 					casualties.push_back(tank);
 				}
@@ -645,21 +644,37 @@ void Game::update(float deltaTime)
 // Draw all sprites to the screen
 // (It is not recommended to multi-thread this function)
 // -----------------------------------------------------------
+
 void Game::draw()
 {
+	vector<Tank*> sorted_tanks_b(tanks.size());
+	vector<Tank*> sorted_tanks_r(tanks.size());
+	auto mergeTask = pool.enqueue([&]
+		{
+			for (int t = 0; t < 2; t++)																													//2
+			{
+				std::vector<Tank*>* sorted_tanks = t == 0 ? &sorted_tanks_b : &sorted_tanks_r;
+				
+				const int NUM_TANKS = ((t < 1) ? num_tanks_blue : num_tanks_red);
+
+				const int begin = ((t < 1) ? 0 : num_tanks_blue);
+				
+				transform(tanks.begin(), tanks.end(), sorted_tanks->begin(), [](Tank* t) { return t; }); //puts all the tanks in original in sorted tanks as pointers to make merge sorting easier
+
+				merge_sort_tanks_health(*sorted_tanks, 0, sorted_tanks->size() - 1, 0);
+			}
+		});
 	// clear the graphics window
 	screen->clear(0);
-
 	//Draw background
 	//background_terrain.draw(screen);
-
 	if (background == NULL)
 	{
 		background = new Surface(SCRWIDTH, SCRHEIGHT);
 		background->clear(0);
 		background_terrain.draw(background);
 	}
-	for (Tank* tank : casualties)																					//N
+	for (Tank* tank : casualties)																		
 	{
 		tank->draw(background);
 		delete tank;
@@ -667,28 +682,25 @@ void Game::draw()
 	background->copy_to(screen, 0, 0);
 	casualties.clear();
 	//Draw sprites
-	
-	for (Tank* tank: tanks)																					//N
+	for (Tank* tank: tanks)																					
 	{
 		tank->draw(screen);
 	}
-
-	for (Rocket* rocket : rockets)																												//N
+			//N*M
+	for (Rocket* rocket : rockets)																										
 	{
 		rocket->draw(screen);
 	}
-
-	for (Smoke& smoke : smokes)																													//N
+	for (Smoke* smoke : smokes)																										
 	{
-		smoke.draw(screen);
+		smoke->draw(screen);
 	}
-
-	for (Particle_beam& particle_beam : particle_beams)																							//N
+	for (Particle_beam& particle_beam : particle_beams)																					
 	{
 		particle_beam.draw(screen);
 	}
 
-	for (Explosion& explosion : explosions)																										//N
+	for (Explosion& explosion : explosions)																								
 	{
 		explosion.draw(screen);
 	}
@@ -703,21 +715,9 @@ void Game::draw()
 		screen->line(line_start, line_end, 0x0000ff);
 	}
 
-	//Draw sorted health bars
-	for (int t = 0; t < 2; t++)																													//2
-	{
-		const int NUM_TANKS = ((t < 1) ? num_tanks_blue : num_tanks_red);
-
-		const int begin = ((t < 1) ? 0 : num_tanks_blue);
-		std::vector<Tank*> sorted_tanks(tanks.size());
-		transform(tanks.begin(), tanks.end(), sorted_tanks.begin(), [](Tank* t) { return t; }); //puts all the tanks in original in sorted tanks as pointers to make merge sorting easier
-
-		merge_sort_tanks_health(sorted_tanks, 0, sorted_tanks.size() - 1, 0);
-
-		sorted_tanks.erase(std::remove_if(sorted_tanks.begin(), sorted_tanks.end(), [](Tank* tank) { return !tank->active; }), sorted_tanks.end());
-
-		draw_health_bars(sorted_tanks, t);
-	}
+	mergeTask.get();
+	draw_health_bars(sorted_tanks_b, 0);
+	draw_health_bars(sorted_tanks_r, 1);
 }
 
 // -----------------------------------------------------------

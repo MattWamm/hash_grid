@@ -57,12 +57,13 @@ class Game
     vector<Tank*> casualties;
     vector<Rocket*> rockets;
 	vector<Rocket*> rockets_inactive;
-    vector<Smoke> smokes;
+    vector<Smoke*> smokes;
     vector<Explosion> explosions;
     vector<Particle_beam> particle_beams;
 
     Terrain background_terrain;
     vector<vec2> forcefield_hull;
+
 
     Font* frame_count_font;
     long long frame_count = 0;
